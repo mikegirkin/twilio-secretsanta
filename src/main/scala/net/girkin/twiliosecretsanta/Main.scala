@@ -12,7 +12,7 @@ case class TwilioConfig(
 
 object Main extends IOApp {
   def run(args: List[String]): IO[ExitCode] =
-    Server.stream[IO, IO.Par](
+    Server.stream(
       TwilioConfig("", "", new PhoneNumber(""))
     ).compile.drain.as(ExitCode.Success)
 }
