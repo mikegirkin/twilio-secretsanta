@@ -17,7 +17,7 @@ object Server {
     P: Parallel[IO, IO.Par]
   ): Stream[IO, ExitCode] = {
     val twilioApi = TwilioApi(config.accountSid, config.accountToken)
-    val twilioService = new TwilioService[IO](config.fromNumber, twilioApi)
+    val twilioService = new TwilioSecretSantaService[IO](config.fromNumber, twilioApi)
 
     val httpApp = (
       Routes.messageRoutes[IO](twilioService)

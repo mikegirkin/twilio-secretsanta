@@ -6,7 +6,7 @@ import org.http4s.dsl.Http4sDsl
 
 object Routes {
   def messageRoutes[F[_]: Sync](
-    messagingService: MessagingService[F]
+    messagingService: SecretSantaService[F]
   ) (
   ): HttpRoutes[F] = {
 

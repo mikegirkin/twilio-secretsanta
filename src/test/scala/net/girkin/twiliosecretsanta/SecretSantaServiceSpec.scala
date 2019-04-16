@@ -11,7 +11,7 @@ import org.http4s.implicits._
 import scala.concurrent.ExecutionContext
 import JsonCodecs._
 
-class MessagingServiceSpec extends WordSpec
+class SecretSantaServiceSpec extends WordSpec
   with MockFactory
   with Matchers {
 
@@ -20,7 +20,7 @@ class MessagingServiceSpec extends WordSpec
   implicit val par = IO.ioParallel
 
   val fromNumber = new PhoneNumber("from")
-  val messagingService = new TwilioService[IO](fromNumber, twilioMock)
+  val messagingService = new TwilioSecretSantaService[IO](fromNumber, twilioMock)
   val service = Routes.messageRoutes(messagingService).orNotFound
 
   "Messaging service" should {
