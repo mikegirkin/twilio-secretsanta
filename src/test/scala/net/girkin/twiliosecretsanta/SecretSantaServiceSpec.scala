@@ -25,14 +25,15 @@ class SecretSantaServiceSpec extends WordSpec
 
   "Messaging service" should {
     "Send messages when requested" in {
-      val requestData = SendMessageRequest(List(
-        SendMessageRequestItem(new PhoneNumber("to1"), "text1"),
-        SendMessageRequestItem(new PhoneNumber("to2"), "text2")
+      val requestData = SecretSantaRequest(List(
+        SecretSantaParticipant(new PhoneNumber("to1"), "name1"),
+        SecretSantaParticipant(new PhoneNumber("to2"), "name2"),
+        SecretSantaParticipant(new PhoneNumber("to3"), "name3")
       ))
 
       (twilioMock.sendSeveral _).expects( where { items: List[MessageData] =>
-        items.map(_.text).diff(requestData.messages.map(_.text)).isEmpty &&
-        items.map(_.to).diff(requestData.messages.map(_.to)).isEmpty &&
+        items.map(_.text).diff(requestData.participants.map(_.name)).isEmpty &&
+        items.map(_.to).diff(requestData.participants.map(_.phone)).isEmpty &&
         items.map(_.from).forall(ph => ph == fromNumber)
       }).returning(
         IO { List("sid1", "sid2") }
@@ -45,6 +46,28 @@ class SecretSantaServiceSpec extends WordSpec
       val result = service.run(request).unsafeRunSync()
 
       result.status shouldBe Status.Ok
+    }
+  }
+
+  "Randomizing recipients" should {
+    "not assign a person to itself" in {
+      val participants = Vector(
+        SecretSantaParticipant(new PhoneNumber("t1"), "name1"),
+        SecretSantaParticipant(new PhoneNumber("t2"), "name2"),
+        SecretSantaParticipant(new PhoneNumber("t3"), "name3")
+      )
+
+      for {
+        _ <- 0 to 100
+      } {
+        val result = SecretSantaService.randomizeRecipients[IO](participants).unsafeRunSync()
+        for {
+          p <- participants
+        } {
+          result.find(_.assignedName == p.name).get.sendTo should not be p.phone
+        }
+      }
+
     }
   }
 }
