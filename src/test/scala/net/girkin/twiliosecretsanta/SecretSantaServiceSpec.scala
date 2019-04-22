@@ -26,17 +26,16 @@ class SecretSantaServiceSpec extends WordSpec
   "Messaging service" should {
     "Send messages when requested" in {
       val requestData = SecretSantaRequest(List(
-        SecretSantaParticipant(new PhoneNumber("to1"), "name1"),
-        SecretSantaParticipant(new PhoneNumber("to2"), "name2"),
-        SecretSantaParticipant(new PhoneNumber("to3"), "name3")
+        SecretSantaParticipant(new PhoneNumber("t1"), "name1"),
+        SecretSantaParticipant(new PhoneNumber("t2"), "name2"),
+        SecretSantaParticipant(new PhoneNumber("t3"), "name3")
       ))
 
       (twilioMock.sendSeveral _).expects( where { items: List[MessageData] =>
-        items.map(_.text).diff(requestData.participants.map(_.name)).isEmpty &&
         items.map(_.to).diff(requestData.participants.map(_.phone)).isEmpty &&
         items.map(_.from).forall(ph => ph == fromNumber)
       }).returning(
-        IO { List("sid1", "sid2") }
+        IO { List("sid1", "sid2", "sid3") }
       )
 
       val request = Request[IO](Method.POST, Uri.unsafeFromString("/messages")).withEntity(

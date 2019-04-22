@@ -56,15 +56,17 @@ object SecretSantaService {
       val assignments = participants.zipWithIndex.foldLeft((Vector.empty[(SecretSantaParticipant, SecretSantaParticipant)], indicesSet)) {
         case ((assignment, availableIndices), (giver, giverIndex)) => {
           val selection = availableIndices - giverIndex
-          if(selection.nonEmpty) {
+          if (selection.nonEmpty) {
             val selected = Random.nextInt(selection.size)
             val takerIndex = selection.drop(selected).head
             (assignment :+ (giver, participants(takerIndex)), availableIndices - takerIndex)
           } else {
+            // If the number of participants is odd, there might be situation where the last standing item could only be assigned to self
+            // If the situation like this is detected - we need to swap assignments of that last standing with the another one
             val swapWith = Random.nextInt(assignment.length)
-            val anotherAssignment @ (anotherGiver, anotherTaker) = assignment(swapWith)
-            val taker = giver
-            (assignment.filter(_ != anotherAssignment) :+ (giver, anotherTaker) :+ (anotherGiver, taker), selection)
+            val anotherAssignment@(anotherGiver, anotherTaker) = assignment(swapWith)
+            val lastStanding = giver
+            (assignment.filter(_ != anotherAssignment) :+ (lastStanding, anotherTaker) :+ (anotherGiver, lastStanding), selection)
           }
 
         }
@@ -74,33 +76,6 @@ object SecretSantaService {
         case (giver, taker) => SecretSantaAssignment(giver.phone, taker.name)
       }
     }
-
-
-//    def randomIntExcept(range: Int, except: Int): Int = {
-//      var number: Int = 0
-//      do {
-//        number = Random.nextInt(range)
-//      } while (number == except)
-//      number
-//    }
-//
-//    Sync[F].delay {
-//      val shuffled = Random.shuffle(participants).zip(participants).toVector
-//
-//      val reshuffled = shuffled.zipWithIndex.foldLeft(shuffled) {
-//        case (acc, ((taker, giver), index)) => if (taker == giver) {
-//          val anotherIndex = randomIntExcept(shuffled.length, index)
-//          acc.updated(index, acc(anotherIndex)._1 -> acc(index)._2)
-//            .updated(anotherIndex, acc(index)._1 -> acc(anotherIndex)._2)
-//        } else {
-//          acc
-//        }
-//      }
-//
-//      reshuffled.map {
-//        case (taker, giver) => SecretSantaAssignment(giver.phone, taker.name)
-//      }.toList
-//    }
   }
 }
 
