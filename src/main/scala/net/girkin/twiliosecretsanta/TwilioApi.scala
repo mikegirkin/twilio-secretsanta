@@ -35,7 +35,7 @@ private class TwilioApiImpl(
     val sendAction = for {
       _ <- IO { logger.debug(s"Sending ${textMessage.from} -> ${textMessage.to}") }
       sid <- IO {
-        Message.creator(textMessage.from, textMessage.to, textMessage.text)
+        Message.creator(textMessage.to, textMessage.from, textMessage.text)
           .create(client)
           .getSid
       }

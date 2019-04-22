@@ -64,6 +64,8 @@ class SecretSantaServiceSpec extends WordSpec
           p <- participants
         } {
           result.find(_.assignedName == p.name).get.sendTo should not be p.phone
+          result.map(_.assignedName).diff(participants.map(_.name)) shouldBe empty
+          result.map(_.sendTo).diff(participants.map(_.phone)) shouldBe empty
         }
       }
 
