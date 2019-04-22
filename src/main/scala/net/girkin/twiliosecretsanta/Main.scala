@@ -1,9 +1,10 @@
 package net.girkin.twiliosecretsanta
 
 import cats.data.ValidatedNec
-import cats.effect.{ExitCode, IO, IOApp}
 import cats.implicits._
 import com.twilio.`type`.PhoneNumber
+import scalaz.zio._
+import scalaz.zio.interop.catz._
 
 case class TwilioConfig(
   accountSid: String,
@@ -14,16 +15,14 @@ case class TwilioConfig(
 case class ConfigurationException(msg: String) extends Exception
 case class ParameterRequired(name: String)
 
-object Main extends IOApp {
-  val config = TwilioConfig("", "", new PhoneNumber(""))
-
-  private def readEnvRequired(name: String): IO[ValidatedNec[ParameterRequired, String]] = IO {
+object Main {
+  private def readEnvRequired(name: String): Task[ValidatedNec[ParameterRequired, String]] = Task {
     val value = System.getenv(name)
     if(value == null) ParameterRequired(name).invalidNec
     else value.validNec
   }
 
-  def readConfig: IO[TwilioConfig] = {
+  def readConfig: Task[TwilioConfig] = {
     (
       readEnvRequired("ACCOUNT_SID"),
       readEnvRequired("ACCOUNT_TOKEN"),
@@ -32,24 +31,28 @@ object Main extends IOApp {
       _.mapN {
         case (accountSid, accountToken, fromNumber) => TwilioConfig(accountSid, accountToken, new PhoneNumber(fromNumber))
       }.fold(
-        err => IO.raiseError[TwilioConfig](
+        err => Task.fail(
           ConfigurationException(s"Parameters required but not provided: ${err.toList.map(_.name).mkString("[", ", ", "]")}")
         ),
-        c => IO.pure(c)
+        c => Task.succeed(c)
       )
     }
   }
 
-  def run(args: List[String]): IO[ExitCode] =
-    (for {
-      config <- readConfig
-      exitcode <- Server.stream(config).compile.drain.as(ExitCode.Success)
-    } yield {
-      exitcode
-    }).recoverWith {
-      case ConfigurationException(msg) => IO {
-        println(s"ERROR: $msg")
-        ExitCode.Error
+  def main(args: Array[String]): Unit = {
+    val runtime = new DefaultRuntime {}
+    runtime.unsafeRun {
+      (for {
+        config <- readConfig
+        exitcode <- Server.stream(config).compile.drain.as(0)
+      } yield {
+        exitcode
+      }).recoverWith {
+        case ConfigurationException(msg) => Task {
+          println(s"ERROR: $msg")
+          -1
+        }
       }
     }
+  }
 }

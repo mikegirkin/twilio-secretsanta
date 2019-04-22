@@ -1,7 +1,7 @@
 package net.girkin.twiliosecretsanta
 
 import cats.implicits._
-import cats.effect.{Effect, IO, Sync}
+import cats.effect.Sync
 import com.twilio.`type`.PhoneNumber
 import io.circe._
 import io.circe.generic.semiauto._

@@ -20,6 +20,9 @@ lazy val root = (project in file("."))
       "ch.qos.logback"  %  "logback-classic"     % LogbackVersion,
       "com.twilio.sdk"  %  "twilio"              % "7.37.2",
 
+      "org.scalaz"      %% "scalaz-zio"              % "1.0-RC4",
+      "org.scalaz"      %% "scalaz-zio-interop-cats" % "1.0-RC4",
+
       "org.scalatest"   %% "scalatest"           % ScalatestVersion % Test,
       "org.scalamock"   %% "scalamock"           % "4.1.0" % Test
     ),

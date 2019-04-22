@@ -1,31 +1,31 @@
 package net.girkin.twiliosecretsanta
 
-import cats.Parallel
-import cats.effect.{ContextShift, ExitCode, IO, Timer}
+import cats.effect.ExitCode
 import fs2.Stream
 import org.http4s.implicits._
 import org.http4s.server.blaze.BlazeServerBuilder
 import org.http4s.server.middleware.Logger
+import scalaz.zio.{Task, _}
+import scalaz.zio.interop.catz._
+import scalaz.zio.interop.catz.implicits._
 
 object Server {
 
   def stream(
     config: TwilioConfig
-  )(
-    implicit T: Timer[IO],
-    C: ContextShift[IO],
-    P: Parallel[IO, IO.Par]
-  ): Stream[IO, ExitCode] = {
+  ): Stream[Task, ExitCode] = {
     val twilioApi = TwilioApi(config.accountSid, config.accountToken)
-    val twilioService = new TwilioSecretSantaService[IO](config.fromNumber, twilioApi)
+    val twilioService = new TwilioSecretSantaService[Task](config.fromNumber, twilioApi)
 
     val httpApp = (
-      Routes.messageRoutes[IO](twilioService)
+      Routes.messageRoutes[Task](twilioService)
       ).orNotFound
 
     val finalHttpApp = Logger.httpApp(true, true)(httpApp)
 
-    BlazeServerBuilder[IO]
+    implicit val runtime = new DefaultRuntime {}
+
+    BlazeServerBuilder[Task]
       .bindHttp(8080, "0.0.0.0")
       .withHttpApp(finalHttpApp)
       .serve

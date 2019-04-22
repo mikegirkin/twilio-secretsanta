@@ -1,14 +1,13 @@
 package net.girkin.twiliosecretsanta
 
-import cats.Parallel
-import cats.effect.IO
-import cats.implicits._
 import com.twilio.`type`.PhoneNumber
 import com.twilio.http.TwilioRestClient
 import com.twilio.rest.api.v2010.account.Message
+import scalaz.zio.{Task}
+import scalaz.zio._
 
 object TwilioApi {
-  def apply(accountSid: String, accountToken: String)(implicit p: Parallel[IO, IO.Par]): TwilioApi[IO] = {
+  def apply(accountSid: String, accountToken: String): TwilioApi[Task] = {
     val client = new TwilioRestClient.Builder(accountSid, accountToken).build()
 
     new TwilioApiImpl(client)
@@ -28,27 +27,30 @@ trait TwilioApi[F[_]] {
 
 private class TwilioApiImpl(
   client: TwilioRestClient
-) (
-  implicit p: Parallel[IO, IO.Par]
-) extends TwilioApi[IO] with Logging[IO] {
-  override def sendMessage(textMessage: MessageData): IO[String] = {
+) extends TwilioApi[Task] with Logging[Task] {
+  override def sendMessage(textMessage: MessageData): Task[String] = {
     val sendAction = for {
-      _ <- IO { logger.debug(s"Sending ${textMessage.from} -> ${textMessage.to}") }
-      sid <- IO {
+      _ <- Task { logger.debug(s"Sending ${textMessage.from} -> ${textMessage.to}") }
+      sid <- Task {
         Message.creator(textMessage.to, textMessage.from, textMessage.text)
           .create(client)
           .getSid
       }
-      _ <- IO { logger.info(s"Success sending message to ${textMessage.to}") }
+      _ <- Task { logger.info(s"Success sending message to ${textMessage.to}") }
     } yield sid
 
-    sendAction.handleErrorWith { err =>
-      IO { logger.error(s"Failed sending to ${textMessage.to}", err) }
-      IO.raiseError(err)
+    sendAction.catchAll {
+      err => Task {
+        logger.error(s"Failed sending to ${textMessage.to}", err)
+      }.flatMap {
+        _ => Task.fail(err)
+      }
     }
   }
 
-  override def sendSeveral(messages: List[MessageData]): IO[List[String]] = {
-    messages.parTraverse((m: MessageData) => sendMessage(m))
+  override def sendSeveral(messages: List[MessageData]): Task[List[String]] = {
+    Task.collectAllPar(
+      messages.map(sendMessage)
+    )
   }
 }
