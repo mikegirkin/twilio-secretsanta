@@ -4,7 +4,7 @@ import cats.effect.Sync
 import org.slf4j.LoggerFactory
 
 trait Logging {
-  val logger = LoggerFactory.getLogger(this.getClass)
+  private val logger = LoggerFactory.getLogger(this.getClass)
 
   def trace[F[_]: Sync](msg: String): F[Unit] = Sync[F].delay {
     logger.trace(msg)

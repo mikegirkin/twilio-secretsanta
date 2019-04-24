@@ -3,7 +3,7 @@ package net.girkin.twiliosecretsanta
 import com.twilio.`type`.PhoneNumber
 import com.twilio.http.TwilioRestClient
 import com.twilio.rest.api.v2010.account.Message
-import scalaz.zio.{Task}
+import scalaz.zio.Task
 import scalaz.zio.interop.catz._
 
 object TwilioApi {
@@ -29,18 +29,18 @@ private class TwilioApiImpl(
   client: TwilioRestClient
 ) extends TwilioApi[Task] with Logging {
   override def sendMessage(textMessage: MessageData): Task[String] = {
-    val sendAction = for {
-      _ <- debug(s"Sending ${textMessage.from} -> ${textMessage.to}")
+    val sendAction: Task[String] = for {
+      _ <- debug[Task](s"Sending ${textMessage.from} -> ${textMessage.to}")
       sid <- Task {
         Message.creator(textMessage.to, textMessage.from, textMessage.text)
           .create(client)
           .getSid
       }
-      _ <- info(s"Success sending message to ${textMessage.to}")
+      _ <- info[Task](s"Success sending message to ${textMessage.to}")
     } yield sid
 
     sendAction.catchAll {
-      err => error(s"Failed sending to ${textMessage.to}", err)
+      err => error[Task](s"Failed sending to ${textMessage.to}", err)
         .flatMap {
           _ => Task.fail(err)
         }

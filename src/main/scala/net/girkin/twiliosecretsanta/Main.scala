@@ -44,7 +44,7 @@ object Main {
     runtime.unsafeRun {
       (for {
         config <- readConfig
-        exitcode <- Server.stream(config).compile.drain.as(0)
+        exitcode <- Server.stream(config)(runtime).compile.drain.as(0)
       } yield {
         exitcode
       }).recoverWith {

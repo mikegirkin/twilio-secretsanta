@@ -11,11 +11,13 @@ import scalaz.zio.interop.catz.implicits._
 
 object Server {
 
-  def stream(
-    config: TwilioConfig
+  def stream[R](
+    config: TwilioConfig,
+  )(
+    implicit runtime: Runtime[R]
   ): Stream[Task, ExitCode] = {
     val twilioApi = TwilioApi(config.accountSid, config.accountToken)
-    val twilioService = new TwilioSecretSantaService[Task](config.fromNumber, twilioApi)
+    val twilioService = new TwilioSecretSantaService[IO[Throwable, ?]](config.fromNumber, twilioApi)
 
     val httpApp = (
       Routes.messageRoutes[Task](twilioService)
@@ -23,7 +25,7 @@ object Server {
 
     val finalHttpApp = Logger.httpApp(true, true)(httpApp)
 
-    implicit val runtime = new DefaultRuntime {}
+    //implicit val runtime = new DefaultRuntime {}
 
     BlazeServerBuilder[Task]
       .bindHttp(8080, "0.0.0.0")
