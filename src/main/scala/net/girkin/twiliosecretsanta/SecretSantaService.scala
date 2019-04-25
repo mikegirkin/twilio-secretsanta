@@ -1,14 +1,34 @@
 package net.girkin.twiliosecretsanta
 
+import cats.data.{NonEmptyList, Validated, ValidatedNel}
 import cats.effect.Sync
-import cats.implicits._
+import cats.syntax.reducible._
+import cats.data.NonEmptyList._
 import com.twilio.`type`.PhoneNumber
-import io.circe._
-import io.circe.generic.semiauto._
 import org.http4s.{Request, Response}
 
 import scala.collection.immutable.SortedSet
 import scala.util.Random
+
+sealed trait RequestValidationError extends Product with Serializable {
+  def msg: String
+}
+
+object RequestValidationError {
+  def field(name: String, msg: String): RequestValidationError = FieldValidationError(name, msg)
+  def global(msg: String): RequestValidationError = GlobalValidationError(msg)
+}
+
+final case class FieldValidationError(
+  field: String,
+  msg: String
+) extends RequestValidationError
+
+final case class GlobalValidationError(
+  msg: String
+) extends RequestValidationError
+
+
 
 case class SecretSantaParticipant(
   phone: PhoneNumber,
@@ -27,18 +47,6 @@ case class SecretSantaRequest(
 case class SendMessageResponse(
   sids: List[String]
 )
-
-object JsonCodecs {
-  implicit val phoneNumberDecoder: Decoder[PhoneNumber] = Decoder.decodeString.map {
-    str => new PhoneNumber(str)
-  }
-  implicit val phoneNumberEncoder: Encoder[PhoneNumber] = Encoder.instance { ph => Json.fromString(ph.getEndpoint) }
-  implicit val messageDataDecoder: Decoder[SecretSantaParticipant] = deriveDecoder[SecretSantaParticipant]
-  implicit val messageDataEncoder: Encoder[SecretSantaParticipant] = deriveEncoder[SecretSantaParticipant]
-  implicit val sendMessageRequestDecoder: Decoder[SecretSantaRequest] = deriveDecoder[SecretSantaRequest]
-  implicit val sendMessageRequestEncoder: Encoder[SecretSantaRequest] = deriveEncoder[SecretSantaRequest]
-  implicit val sendMessageResponseEncoder: Encoder[SendMessageResponse] = deriveEncoder[SendMessageResponse]
-}
 
 trait SecretSantaService[F[_]] {
   def post(request: Request[F]): F[Response[F]]
@@ -72,6 +80,30 @@ object SecretSantaService {
         case (giver, taker) => SecretSantaAssignment(giver.phone, taker.name)
       }
     }
+  }
+
+  def validate(secretSantaRequest: SecretSantaRequest): Either[NonEmptyList[RequestValidationError], SecretSantaRequest] = {
+    val restrictions = NonEmptyList.of(
+      "participants" -> NonEmptyList.of[(SecretSantaRequest => Boolean, String)](
+        (ssr => ssr.participants.size >= 2, "There must be 2 or more participants"),
+        (ssr => ssr.participants.map(_.name).distinct.size == ssr.participants.size,
+          "All the participants must have unique names"),
+        (ssr => ssr.participants.map(_.phone).distinct.size == ssr.participants.size,
+          "All the participants must have unique phone numbers")
+      )
+    )
+
+    val validated: ValidatedNel[RequestValidationError, SecretSantaRequest] = restrictions.reduceMapK {
+      case(field, validator) => validator.reduceMapK {
+        case (check, errorText) => Validated.cond(
+          check(secretSantaRequest),
+          secretSantaRequest,
+          RequestValidationError.field(field, errorText)
+        ).toValidatedNel
+      }
+    }
+
+    validated.toEither
   }
 }
 
