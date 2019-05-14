@@ -32,15 +32,19 @@ class TwilioSecretSantaService[F[_]: Sync](
         }
       }
       result <- EitherT.right[Response[F]] { twilioApi.sendSeveral(messages.toList) }
-      response <- EitherT.right[Response[F]] { Ok(result.asJson) }
     } yield {
-      response
+      result.map {
+        case Right(sid) => sid
+        case Left(SendError(message)) => s"Error sending message to ${message.to}"
+      }.asJson
     }
 
-    action.fold(identity, identity).handleErrorWith {
-      e => error("There was an error processing request", e).flatMap {
-        _ => Sync[F].raiseError(e)
+    action.semiflatMap(json => Ok(json))
+      .fold(identity, identity)
+      .handleErrorWith {
+        e => error("There was an error processing request", e).flatMap {
+          _ => Sync[F].raiseError(e)
+        }
       }
-    }
   }
 }

@@ -7,6 +7,7 @@ import org.scalamock.scalatest.MockFactory
 import org.scalatest.{Matchers, WordSpec}
 import org.http4s.circe.CirceEntityCodec._
 import org.http4s.implicits._
+import cats.syntax.either._
 
 import scala.concurrent.ExecutionContext
 import JsonCodecs._
@@ -35,7 +36,7 @@ class SecretSantaServiceSpec extends WordSpec
         items.map(_.to).diff(requestData.participants.map(_.phone)).isEmpty &&
         items.map(_.from).forall(ph => ph == fromNumber)
       }).returning(
-        IO { List("sid1", "sid2", "sid3") }
+        IO { List("sid1", "sid2", "sid3").map(x => Either.right[SendError, String](x))}
       )
 
       val request = Request[IO](Method.POST, Uri.unsafeFromString("/messages")).withEntity(

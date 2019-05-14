@@ -3,10 +3,12 @@ package net.girkin.twiliosecretsanta
 import cats.data.{NonEmptyList, Validated, ValidatedNel}
 import cats.effect.Sync
 import cats.syntax.reducible._
+import cats.syntax.functor._
 import cats.data.NonEmptyList._
 import com.twilio.`type`.PhoneNumber
 import org.http4s.{Request, Response}
 
+import scala.annotation.tailrec
 import scala.collection.immutable.SortedSet
 import scala.util.Random
 
@@ -27,8 +29,6 @@ final case class FieldValidationError(
 final case class GlobalValidationError(
   msg: String
 ) extends RequestValidationError
-
-
 
 case class SecretSantaParticipant(
   phone: PhoneNumber,
@@ -53,31 +53,39 @@ trait SecretSantaService[F[_]] {
 }
 
 object SecretSantaService {
-  def randomizeRecipients[F[_]: Sync](participants: Vector[SecretSantaParticipant]): F[Vector[SecretSantaAssignment]] = {
-    val indicesSet = SortedSet(participants.indices:_*)
+  def pickRandomElement[A](indexedSeq: Set[A]): A = {
+    indexedSeq.drop(Random.nextInt(indexedSeq.size)).head
+  }
+
+  def randomizeIndicesPreventSamePosition[F[_]: Sync](length: Int): F[Vector[Int]] = {
+    @tailrec
+    def randomizeIndicesPreventSamePositionIntrnl(partiallyDone: Vector[Int], remaining: SortedSet[Int]): Vector[Int] = {
+      if(remaining.size == 1) {
+        if(remaining.head == partiallyDone.size) {
+          val index = Random.nextInt(partiallyDone.size)
+          partiallyDone.updated(index, remaining.head) :+ partiallyDone(index)
+        } else {
+          partiallyDone :+ remaining.head
+        }
+      } else {
+        val next = pickRandomElement(remaining - partiallyDone.size)
+        randomizeIndicesPreventSamePositionIntrnl(partiallyDone :+ next, remaining - next)
+      }
+    }
 
     Sync[F].delay {
-      val assignments = participants.zipWithIndex.foldLeft((Vector.empty[(SecretSantaParticipant, SecretSantaParticipant)], indicesSet)) {
-        case ((assignment, availableIndices), (giver, giverIndex)) => {
-          val selection = availableIndices - giverIndex
-          if (selection.nonEmpty) {
-            val selected = Random.nextInt(selection.size)
-            val takerIndex = selection.drop(selected).head
-            (assignment :+ (giver, participants(takerIndex)), availableIndices - takerIndex)
-          } else {
-            // If the number of participants is odd, there might be situation where the last standing item could only be assigned to self
-            // If the situation like this is detected - we need to swap assignments of that last standing with the another one
-            val swapWith = Random.nextInt(assignment.length)
-            val anotherAssignment@(anotherGiver, anotherTaker) = assignment(swapWith)
-            val lastStanding = giver
-            (assignment.filter(_ != anotherAssignment) :+ (lastStanding, anotherTaker) :+ (anotherGiver, lastStanding), selection)
-          }
+      randomizeIndicesPreventSamePositionIntrnl(Vector.empty, SortedSet(Range(0, length):_*))
+    }
+  }
 
+  def randomizeRecipients[F[_]: Sync](participants: Vector[SecretSantaParticipant]): F[Vector[SecretSantaAssignment]] = {
+    for {
+      randomizedIndices <- randomizeIndicesPreventSamePosition(participants.length)
+    } yield {
+      participants.zip(randomizedIndices).foldLeft(Vector.empty[SecretSantaAssignment]) {
+        case (acc, (giver, takerIndex)) => {
+          acc :+ SecretSantaAssignment(giver.phone, participants(takerIndex).name)
         }
-      }
-
-      assignments._1.map {
-        case (giver, taker) => SecretSantaAssignment(giver.phone, taker.name)
       }
     }
   }
